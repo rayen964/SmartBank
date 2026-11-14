@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartBank | Dashboard</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/script.js" defer></script>
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="logo">▣</span>
+            <div>
+                <h2>SmartBank</h2>
+                <small>Smart Banking Partner</small>
+            </div>
+        </div>
+
+        <nav>
+            <a class="active" href="#dashboard">⌂ Dashboard</a>
+            <a href="#accounts">▣ Accounts</a>
+            <a href="#transactions">⇄ Transactions</a>
+            <a href="#analytics">▥ Analytics</a>
+        </nav>
+
+        <div class="secure">
+            <span>✓</span>
+            <h4>Secure & Reliable</h4>
+            <p>Banking for a better tomorrow</p>
+        </div>
+
+        <small class="demo">Educational demo · Not a real bank</small>
+    </aside>
+
+
+    <main id="dashboard">
+
+        <header class="topbar">
+            <input id="search" type="search"
+                   placeholder="Search transactions...">
+
+            <div class="user">
+                <span class="avatar">U</span>
+                <strong>Welcome, User</strong>
+            </div>
+        </header>
+
+
+        <section class="welcome">
+            <div>
+                <small>YOUR FINANCES, ONE PLACE</small>
+                <h1>Welcome back!</h1>
+                <p>Manage your finances with SmartBank.</p>
+            </div>
+            <span class="welcome-icon">▣</span>
+        </section>
+
+
+        <section class="accounts" id="accounts">
+
+            <article class="balance-card blue">
+                <span>▣</span>
+                <div>
+                    <p>Compte courant</p>
+                    <h2 id="currentBalance">0 DT</h2>
+                    <small>Available balance</small>
+                </div>
+            </article>
+
+            <article class="balance-card teal">
+                <span>♧</span>
+                <div>
+                    <p>Compte épargne</p>
+                    <h2 id="savingsBalance">0 DT</h2>
+                    <small>Available balance</small>
+                </div>
+            </article>
+
+            <article class="balance-card purple">
+                <span>↗</span>
+                <div>
+                    <p>Total Balance</p>
+                    <h2 id="totalBalance">0 DT</h2>
+                    <small>All accounts</small>
+                </div>
+            </article>
+
+        </section>
+
+
+        <section class="content-grid">
+
+            <article class="panel" id="analytics">
+                <h2>Balance Overview</h2>
+                <div class="chart-container">
+                    <canvas id="balanceChart"></canvas>
+                </div>
+            </article>
+
+            <article class="panel">
+                <h2>Quick Actions</h2>
+
+                <div class="actions">
+                    <button id="focusForm">＋ Add Transaction</button>
+                    <a href="#accounts">▣ View Accounts</a>
+                    <a href="#transactions">⇄ History</a>
+                    <a href="#analytics">▥ Analytics</a>
+                </div>
+            </article>
+
+        </section>
+
+
+        <section class="panel transactions" id="transactions">
+
+            <h2>Transaction Management</h2>
+
+            <form id="transactionForm">
+
+                <div class="form-grid">
+
+                    <div>
+                        <label>Description</label>
+                        <input id="description"
+                               type="text"
+                               placeholder="Ex: Shopping"
+                               maxlength="100"
+                               required>
+                    </div>
+
+                    <div>
+                        <label>Account</label>
+                        <select id="account">
+                            <option value="current">Compte courant</option>
+                            <option value="savings">Compte épargne</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Transaction type</label>
+                        <select id="type">
+                            <option value="deposit">Dépôt</option>
+                            <option value="withdrawal">Retrait</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Amount (DT)</label>
+                        <input id="amount"
+                               type="number"
+                               min="0.001"
+                               step="0.001"
+                               placeholder="100"
+                               required>
+                    </div>
+
+                </div>
+
+                <button class="submit-button" type="submit">
+                    ＋ Add Transaction
+                </button>
+
+                <p id="message"></p>
+
+            </form>
+
+
+            <div class="history-heading">
+                <h3>Recent Transactions</h3>
+
+                <select id="filter">
+                    <option value="all">All transactions</option>
+                    <option value="deposit">Deposits</option>
+                    <option value="withdrawal">Withdrawals</option>
+                </select>
+            </div>
+
+
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Date</th>
+                            <th>Account</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="transactionList">
+                        <tr>
+                            <td colspan="5">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </section>
+
+
+        <footer>
+            SmartBank Classic · Educational Finance Project
+        </footer>
+
+    </main>
+
+</div>
+
+</body>
+</html>
