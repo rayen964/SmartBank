@@ -2297,3 +2297,224 @@ def download_database_backup(
             )
         },
     )
+
+# ============================================================
+# TEMPORARY SECURE LOCAL DATABASE RESTORE
+# ============================================================
+
+@app.post("/admin/restore-local")
+async def restore_local_database(
+    request: Request,
+    x_backup_token: Optional[str] = Header(default=None),
+):
+    expected_token = os.getenv("SMARTBANK_BACKUP_TOKEN")
+
+    if (
+        not expected_token
+        or not x_backup_token
+        or not secrets.compare_digest(
+            x_backup_token,
+            expected_token,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied.",
+        )
+
+    payload = await request.body()
+
+    if not payload or len(payload) > 20 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid backup file.",
+        )
+
+    source = sqlite3.connect(":memory:")
+
+    try:
+        source.deserialize(payload)
+        source.row_factory = sqlite3.Row
+
+        integrity = source.execute(
+            "PRAGMA integrity_check"
+        ).fetchone()[0]
+
+        if integrity != "ok":
+            raise HTTPException(
+                status_code=400,
+                detail="Backup integrity check failed.",
+            )
+
+        required_tables = {
+            row[0]
+            for row in source.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+        if not {
+            "accounts",
+            "transactions",
+            "bank_periods",
+            "bank_settings",
+        }.issubset(required_tables):
+            raise HTTPException(
+                status_code=400,
+                detail="Backup is missing required tables.",
+            )
+
+        accounts = [
+            dict(row)
+            for row in source.execute(
+                "SELECT * FROM accounts"
+            ).fetchall()
+        ]
+
+        transactions = [
+            dict(row)
+            for row in source.execute(
+                "SELECT * FROM transactions ORDER BY id"
+            ).fetchall()
+        ]
+
+        periods = [
+            dict(row)
+            for row in source.execute(
+                "SELECT * FROM bank_periods"
+            ).fetchall()
+        ]
+
+        settings = [
+            dict(row)
+            for row in source.execute(
+                "SELECT * FROM bank_settings"
+            ).fetchall()
+        ]
+
+        account_ids = {a["id"] for a in accounts}
+
+        if not {"current", "savings"}.issubset(account_ids):
+            raise HTTPException(
+                status_code=400,
+                detail="Required accounts are missing.",
+            )
+
+        if any(
+            t["account_id"] not in account_ids
+            for t in transactions
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid transaction account.",
+            )
+
+    finally:
+        source.close()
+
+    with connect_db() as db:
+        db.execute("DELETE FROM transactions")
+        db.execute("DELETE FROM bank_periods")
+        db.execute("DELETE FROM accounts")
+        db.execute("DELETE FROM bank_settings")
+
+        for account in accounts:
+            db.execute("""
+                INSERT INTO accounts
+                    (id, name, balance, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (
+                account["id"],
+                account["name"],
+                account["balance"],
+                account.get("created_at"),
+            ))
+
+        for transaction in transactions:
+            db.execute("""
+                INSERT INTO transactions (
+                    id, description, account_id, type,
+                    amount, date, date_operation,
+                    date_valeur, created_at, reference
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                transaction["id"],
+                transaction["description"],
+                transaction["account_id"],
+                transaction["type"],
+                transaction["amount"],
+                transaction["date"],
+                transaction.get("date_operation"),
+                transaction.get("date_valeur"),
+                transaction.get("created_at"),
+                transaction.get("reference"),
+            ))
+
+        for period in periods:
+            period_name = period["period"]
+            year_text, quarter_text = period_name.split("-T")
+            year = int(year_text)
+            quarter = int(quarter_text)
+
+            if quarter not in (1, 2, 3, 4):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid quarter.",
+                )
+
+            quarter_start = (
+                f"{year}-{(quarter - 1) * 3 + 1:02d}-01"
+            )
+
+            old_date = (
+                period.get("date")
+                or period.get("end_date")
+            )
+
+            end_date = str(old_date)[:10]
+            created_at = (
+                period.get("created_at")
+                or period.get("date")
+                or datetime.now().isoformat(timespec="seconds")
+            )
+
+            db.execute("""
+                INSERT INTO bank_periods (
+                    period, start_date, end_date,
+                    gross_interest, tax, net_interest,
+                    overdraft_interest, commissions,
+                    vat, total_agios, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                period_name,
+                quarter_start,
+                end_date,
+                period["gross_interest"],
+                period["tax"],
+                period["net_interest"],
+                period.get("overdraft_interest", 0),
+                period.get("commissions", 0),
+                period.get("vat", 0),
+                period.get("total_agios", 0),
+                created_at,
+            ))
+
+        for setting in settings:
+            db.execute("""
+                INSERT INTO bank_settings
+                    (setting_key, setting_value)
+                VALUES (?, ?)
+            """, (
+                setting["setting_key"],
+                setting["setting_value"],
+            ))
+
+    return {
+        "message": "Local database restored successfully.",
+        "accounts": len(accounts),
+        "transactions": len(transactions),
+        "periods": len(periods),
+        "settings": len(settings),
+    }
