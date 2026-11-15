@@ -9,6 +9,7 @@ import sqlite3
 import math
 import os
 import secrets
+import tempfile
 
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,20 +17,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
-from contextlib import contextmanager
-from datetime import date, datetime, timedelta
-from pathlib import Path
-from calendar import monthrange
-from typing import Optional
-import sqlite3
-import math
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, field_validator
-
 
 # ============================================================
 # 1. APPLICATION CONFIGURATION
@@ -1185,7 +1172,7 @@ def build_savings_table(
             number_credit
             * settings["annual_savings_rate"]
             / ACCOUNTING_DIVISOR
-        ) / 100
+        )
 
         # Keep the balance movement and interest columns separate.
         table_rows.append({
@@ -1305,7 +1292,7 @@ def build_current_table(
             number_debit
             * settings["annual_overdraft_rate"]
             / ACCOUNTING_DIVISOR
-        ) / 100
+        )
 
         commission = (
             debit_interest
@@ -2330,10 +2317,21 @@ async def restore_local_database(
             detail="Invalid backup file.",
         )
 
-    source = sqlite3.connect(":memory:")
+    temporary_path = None
+    source = None
 
     try:
-        source.deserialize(payload)
+        # SQLite PRAGMA integrity_check is more reliable against a real file
+        # than deserializing the uploaded bytes into an in-memory connection.
+        with tempfile.NamedTemporaryFile(
+            prefix="smartbank_restore_",
+            suffix=".db",
+            delete=False,
+        ) as temporary_file:
+            temporary_file.write(payload)
+            temporary_path = temporary_file.name
+
+        source = sqlite3.connect(temporary_path)
         source.row_factory = sqlite3.Row
 
         integrity = source.execute(
@@ -2353,12 +2351,13 @@ async def restore_local_database(
             ).fetchall()
         }
 
-        if not {
+        required = {
             "accounts",
             "transactions",
             "bank_periods",
             "bank_settings",
-        }.issubset(required_tables):
+        }
+        if not required.issubset(required_tables):
             raise HTTPException(
                 status_code=400,
                 detail="Backup is missing required tables.",
@@ -2370,21 +2369,18 @@ async def restore_local_database(
                 "SELECT * FROM accounts"
             ).fetchall()
         ]
-
         transactions = [
             dict(row)
             for row in source.execute(
                 "SELECT * FROM transactions ORDER BY id"
             ).fetchall()
         ]
-
         periods = [
             dict(row)
             for row in source.execute(
                 "SELECT * FROM bank_periods"
             ).fetchall()
         ]
-
         settings = [
             dict(row)
             for row in source.execute(
@@ -2392,8 +2388,7 @@ async def restore_local_database(
             ).fetchall()
         ]
 
-        account_ids = {a["id"] for a in accounts}
-
+        account_ids = {account.get("id") for account in accounts}
         if not {"current", "savings"}.issubset(account_ids):
             raise HTTPException(
                 status_code=400,
@@ -2401,17 +2396,32 @@ async def restore_local_database(
             )
 
         if any(
-            t["account_id"] not in account_ids
-            for t in transactions
+            transaction.get("account_id") not in account_ids
+            for transaction in transactions
         ):
             raise HTTPException(
                 status_code=400,
                 detail="Invalid transaction account.",
             )
 
-    finally:
-        source.close()
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid SQLite backup: {exc}",
+        ) from exc
 
+    finally:
+        if source is not None:
+            source.close()
+        if temporary_path and os.path.exists(temporary_path):
+            try:
+                os.remove(temporary_path)
+            except OSError:
+                pass
+
+    # The live database is modified only after the uploaded backup has
+    # passed integrity and required-data checks. connect_db rolls back
+    # the complete restore if any insert fails.
     with connect_db() as db:
         db.execute("DELETE FROM transactions")
         db.execute("DELETE FROM bank_periods")
@@ -2431,6 +2441,19 @@ async def restore_local_database(
             ))
 
         for transaction in transactions:
+            operation_date = (
+                transaction.get("date_operation")
+                or transaction.get("date")
+            )
+            value_date = (
+                transaction.get("date_valeur")
+                or str(transaction.get("date", ""))[:10]
+            )
+            created_at = (
+                transaction.get("created_at")
+                or transaction.get("date")
+            )
+
             db.execute("""
                 INSERT INTO transactions (
                     id, description, account_id, type,
@@ -2439,23 +2462,29 @@ async def restore_local_database(
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                transaction["id"],
+                transaction.get("id"),
                 transaction["description"],
                 transaction["account_id"],
                 transaction["type"],
                 transaction["amount"],
-                transaction["date"],
-                transaction.get("date_operation"),
-                transaction.get("date_valeur"),
-                transaction.get("created_at"),
+                transaction.get("date") or created_at,
+                operation_date,
+                value_date,
+                created_at,
                 transaction.get("reference"),
             ))
 
         for period in periods:
-            period_name = period["period"]
-            year_text, quarter_text = period_name.split("-T")
-            year = int(year_text)
-            quarter = int(quarter_text)
+            period_name = str(period["period"])
+            try:
+                year_text, quarter_text = period_name.split("-T", 1)
+                year = int(year_text)
+                quarter = int(quarter_text)
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid period name: {period_name}",
+                )
 
             if quarter not in (1, 2, 3, 4):
                 raise HTTPException(
@@ -2463,16 +2492,21 @@ async def restore_local_database(
                     detail="Invalid quarter.",
                 )
 
-            quarter_start = (
-                f"{year}-{(quarter - 1) * 3 + 1:02d}-01"
+            first_month = (quarter - 1) * 3 + 1
+            quarter_start = date(year, first_month, 1)
+            last_month = first_month + 2
+            quarter_end = date(
+                year,
+                last_month,
+                monthrange(year, last_month)[1],
             )
 
-            old_date = (
-                period.get("date")
-                or period.get("end_date")
+            old_date = period.get("date") or period.get("end_date")
+            end_date = (
+                str(old_date)[:10]
+                if old_date
+                else quarter_end.isoformat()
             )
-
-            end_date = str(old_date)[:10]
             created_at = (
                 period.get("created_at")
                 or period.get("date")
@@ -2489,11 +2523,11 @@ async def restore_local_database(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 period_name,
-                quarter_start,
+                quarter_start.isoformat(),
                 end_date,
-                period["gross_interest"],
-                period["tax"],
-                period["net_interest"],
+                period.get("gross_interest", 0),
+                period.get("tax", 0),
+                period.get("net_interest", 0),
                 period.get("overdraft_interest", 0),
                 period.get("commissions", 0),
                 period.get("vat", 0),
