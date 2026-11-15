@@ -1,132 +1,202 @@
+
+"use strict";
+
+// =====================================================
+// SMARTBANK PRO - JAVASCRIPT
+// =====================================================
+
+const API = "";
+
+// DOM ELEMENTS
 const currentBalance = document.getElementById("currentBalance");
 const savingsBalance = document.getElementById("savingsBalance");
 const totalBalance = document.getElementById("totalBalance");
 
 const transactionForm = document.getElementById("transactionForm");
+const transferForm = document.getElementById("transferForm");
+
 const transactionList = document.getElementById("transactionList");
 const message = document.getElementById("message");
+const transferMessage = document.getElementById("transferMessage");
+const interestMessage = document.getElementById("interestMessage");
 
-const search = document.getElementById("search");
 const filter = document.getElementById("filter");
+const search = document.getElementById("search");
 
-let dashboard = {
-    accounts: [],
-    transactions: [],
-    total: 0
-};
-
-let chart = null;
+let transactions = [];
+let balanceChart = null;
 
 
-// FORMAT MONEY
+// =====================================================
+// HELPERS
+// =====================================================
 
-function money(value) {
-    return Number(value).toLocaleString("fr-TN", {
+function formatMoney(value) {
+    return Number(value || 0).toLocaleString("fr-FR", {
         minimumFractionDigits: 3,
         maximumFractionDigits: 3
     }) + " DT";
 }
 
+function showMessage(element, text, error = false) {
+    element.textContent = text;
+    element.classList.toggle("error", error);
+}
 
-// LOAD DATA FROM PYTHON
+async function apiRequest(url, options = {}) {
+    const response = await fetch(API + url, {
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        },
+        ...options
+    });
+
+    let data;
+
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("Réponse invalide du serveur.");
+    }
+
+    if (!response.ok) {
+        throw new Error(data.detail || "Une erreur est survenue.");
+    }
+
+    return data;
+}
+
+
+// =====================================================
+// LOAD DASHBOARD
+// =====================================================
 
 async function loadDashboard() {
     try {
-        const response = await fetch("/api/dashboard");
+        const data = await apiRequest("/api/dashboard");
 
-        if (!response.ok) {
-            throw new Error("Cannot load dashboard.");
-        }
+        const current = data.accounts.find(
+            account => account.id === "current"
+        );
 
-        dashboard = await response.json();
+        const savings = data.accounts.find(
+            account => account.id === "savings"
+        );
 
-        updateBalances();
-        displayTransactions();
-        updateChart();
+        currentBalance.textContent = formatMoney(
+            current ? current.balance : 0
+        );
+
+        savingsBalance.textContent = formatMoney(
+            savings ? savings.balance : 0
+        );
+
+        totalBalance.textContent = formatMoney(data.total);
+
+        transactions = data.transactions || [];
+
+        renderTransactions();
+        updateChart(data.accounts);
 
     } catch (error) {
-        showMessage(error.message, true);
+        console.error(error);
+
+        showMessage(
+            message,
+            "Impossible de charger les données : " + error.message,
+            true
+        );
     }
 }
 
 
-// UPDATE BALANCES
+// =====================================================
+// TRANSACTION HISTORY
+// =====================================================
 
-function updateBalances() {
-    const current = dashboard.accounts.find(
-        account => account.id === "current"
-    );
+function getTransactionCategory(type) {
+    if (type === "deposit") return "Dépôt";
+    if (type === "withdrawal") return "Retrait";
+    if (type === "transfer_out") return "Transfert envoyé";
+    if (type === "transfer_in") return "Transfert reçu";
+    if (type === "interest") return "Intérêts";
+    if (type === "tax") return "Impôt";
 
-    const savings = dashboard.accounts.find(
-        account => account.id === "savings"
-    );
-
-    currentBalance.textContent = money(current?.balance ?? 0);
-    savingsBalance.textContent = money(savings?.balance ?? 0);
-    totalBalance.textContent = money(dashboard.total);
+    return type;
 }
 
+function matchesFilter(transaction, selectedFilter) {
+    if (selectedFilter === "all") return true;
 
-// SHOW MESSAGE
+    if (selectedFilter === "transfer") {
+        return [
+            "transfer_in",
+            "transfer_out"
+        ].includes(transaction.type);
+    }
 
-function showMessage(text, error = false) {
-    message.textContent = text;
-    message.classList.toggle("error", error);
+    return transaction.type === selectedFilter;
 }
 
+function renderTransactions() {
+    const selectedFilter = filter.value;
 
-// DISPLAY TRANSACTIONS
+    const searchText = search
+        ? search.value.trim().toLowerCase()
+        : "";
 
-function displayTransactions() {
+    const filtered = transactions.filter(transaction => {
+        const matchesType = matchesFilter(
+            transaction,
+            selectedFilter
+        );
 
-    const keyword = search.value.toLowerCase();
-    const selectedType = filter.value;
+        const text = (
+            transaction.description + " " +
+            transaction.account_name + " " +
+            transaction.type
+        ).toLowerCase();
 
-    const filtered = dashboard.transactions.filter(transaction => {
-
-        const matchesSearch =
-            transaction.description.toLowerCase().includes(keyword) ||
-            transaction.account_name.toLowerCase().includes(keyword);
-
-        const matchesType =
-            selectedType === "all" ||
-            transaction.type === selectedType;
-
-        return matchesSearch && matchesType;
+        return matchesType && text.includes(searchText);
     });
 
     if (filtered.length === 0) {
-        transactionList.innerHTML =
-            '<tr><td colspan="5">No transactions found.</td></tr>';
+        transactionList.innerHTML = `
+            <tr>
+                <td colspan="5">Aucune transaction trouvée.</td>
+            </tr>
+        `;
         return;
     }
 
     transactionList.innerHTML = filtered.map(transaction => {
+        const positive = [
+            "deposit",
+            "transfer_in",
+            "interest"
+        ].includes(transaction.type);
 
-        const deposit = transaction.type === "deposit";
-        const sign = deposit ? "+" : "-";
-        const label = deposit ? "Dépôt" : "Retrait";
+        const sign = positive ? "+" : "-";
+
+        const color = positive ? "#45d9ae" : "#ff7d89";
 
         return `
             <tr>
                 <td>${escapeHTML(transaction.description)}</td>
-                <td>${transaction.date}</td>
+                <td>${escapeHTML(transaction.date)}</td>
                 <td>${escapeHTML(transaction.account_name)}</td>
-                <td>${label}</td>
-                <td class="${transaction.type}">
-                    ${sign}${money(transaction.amount)}
+                <td>${escapeHTML(getTransactionCategory(transaction.type))}</td>
+                <td style="color:${color};font-weight:700">
+                    ${sign}${formatMoney(transaction.amount)}
                 </td>
             </tr>
         `;
-
     }).join("");
 }
 
-
-// PROTECT HTML FROM USER INPUT
-
 function escapeHTML(value) {
-    return String(value).replace(/[&<>"']/g, character => ({
+    return String(value ?? "").replace(/[&<>"']/g, character => ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
@@ -136,33 +206,54 @@ function escapeHTML(value) {
 }
 
 
-// CREATE CHART
+// =====================================================
+// BALANCE CHART
+// =====================================================
 
-function updateChart() {
-
+function updateChart(accounts) {
     const canvas = document.getElementById("balanceChart");
 
-    if (typeof Chart === "undefined") {
-        canvas.parentElement.textContent =
-            "Chart unavailable. Check your internet connection.";
+    if (!canvas || typeof Chart === "undefined") {
         return;
     }
 
-    if (chart) {
-        chart.destroy();
+    const current = accounts.find(
+        account => account.id === "current"
+    );
+
+    const savings = accounts.find(
+        account => account.id === "savings"
+    );
+
+    const values = [
+        current ? current.balance : 0,
+        savings ? savings.balance : 0
+    ];
+
+    if (balanceChart) {
+        balanceChart.data.datasets[0].data = values;
+        balanceChart.update();
+        return;
     }
 
-    chart = new Chart(canvas, {
-        type: "bar",
+    balanceChart = new Chart(canvas, {
+        type: "doughnut",
 
         data: {
-            labels: dashboard.accounts.map(a => a.name),
+            labels: [
+                "Compte courant",
+                "Compte épargne"
+            ],
 
             datasets: [{
-                label: "Balance",
-                data: dashboard.accounts.map(a => a.balance),
-                backgroundColor: ["#1265c5", "#08a4b8"],
-                borderRadius: 9
+                data: values,
+                backgroundColor: [
+                    "#438cff",
+                    "#20c6ad"
+                ],
+                borderColor: "#111c30",
+                borderWidth: 5,
+                hoverOffset: 10
             }]
         },
 
@@ -172,97 +263,209 @@ function updateChart() {
 
             plugins: {
                 legend: {
-                    display: false
+                    position: "bottom",
+                    labels: {
+                        color: "#b5c3d7",
+                        padding: 22,
+                        usePointStyle: true
+                    }
                 }
             },
 
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
+            cutout: "70%"
         }
     });
 }
 
 
-// ADD TRANSACTION
+// =====================================================
+// DEPOSIT AND WITHDRAWAL
+// =====================================================
 
-transactionForm.addEventListener("submit", async function(event) {
-
+transactionForm.addEventListener("submit", async event => {
     event.preventDefault();
 
-    const data = {
-        description: document.getElementById("description").value.trim(),
-        account: document.getElementById("account").value,
-        type: document.getElementById("type").value,
-        amount: Number(document.getElementById("amount").value)
-    };
+    const description = document.getElementById("description").value.trim();
+    const account = document.getElementById("account").value;
+    const type = document.getElementById("type").value;
+    const amount = Number(document.getElementById("amount").value);
 
-    if (!data.description || !Number.isFinite(data.amount) ||
-        data.amount <= 0) {
-
-        showMessage("Vérifiez les informations.", true);
+    if (!description || !Number.isFinite(amount) || amount <= 0) {
+        showMessage(message, "Veuillez vérifier les informations.", true);
         return;
     }
 
-    const button = transactionForm.querySelector("button");
+    const button = transactionForm.querySelector(
+        'button[type="submit"]'
+    );
+
     button.disabled = true;
-    button.textContent = "Adding...";
 
     try {
-
-        const response = await fetch("/api/transactions", {
+        const result = await apiRequest("/api/transactions", {
             method: "POST",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify(data)
+            body: JSON.stringify({
+                description,
+                account,
+                type,
+                amount
+            })
         });
 
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.detail || "Transaction failed.");
-        }
+        showMessage(message, result.message);
 
         transactionForm.reset();
-
-        showMessage(result.message);
 
         await loadDashboard();
 
     } catch (error) {
-
-        showMessage(error.message, true);
+        showMessage(message, error.message, true);
 
     } finally {
-
         button.disabled = false;
-        button.textContent = "＋ Add Transaction";
     }
 });
 
 
-// SEARCH AND FILTER
+// =====================================================
+// TRANSFERS
+// =====================================================
 
-search.addEventListener("input", displayTransactions);
-filter.addEventListener("change", displayTransactions);
+transferForm.addEventListener("submit", async event => {
+    event.preventDefault();
 
+    const fromAccount = document.getElementById("fromAccount").value;
+    const toAccount = document.getElementById("toAccount").value;
 
-// QUICK ACTION
+    const amount = Number(
+        document.getElementById("transferAmount").value
+    );
 
-document.getElementById("focusForm").addEventListener("click", () => {
-    document.getElementById("description").focus();
+    const description = document.getElementById(
+        "transferDescription"
+    ).value.trim() || "Transfert entre comptes";
 
-    document.getElementById("transactions").scrollIntoView({
-        behavior: "smooth"
-    });
+    if (fromAccount === toAccount) {
+        showMessage(
+            transferMessage,
+            "Les deux comptes doivent être différents.",
+            true
+        );
+        return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showMessage(
+            transferMessage,
+            "Montant invalide.",
+            true
+        );
+        return;
+    }
+
+    const button = transferForm.querySelector(
+        'button[type="submit"]'
+    );
+
+    button.disabled = true;
+
+    try {
+        const result = await apiRequest("/api/transfers", {
+            method: "POST",
+            body: JSON.stringify({
+                from_account: fromAccount,
+                to_account: toAccount,
+                amount,
+                description
+            })
+        });
+
+        showMessage(transferMessage, result.message);
+
+        transferForm.reset();
+
+        await loadDashboard();
+
+    } catch (error) {
+        showMessage(transferMessage, error.message, true);
+
+    } finally {
+        button.disabled = false;
+    }
 });
 
 
-// START APPLICATION
+// =====================================================
+// QUARTERLY INTEREST
+// =====================================================
 
-loadDashboard();
+document.getElementById("applyInterest").addEventListener(
+    "click",
+    async event => {
+        const button = event.currentTarget;
+
+        button.disabled = true;
+
+        try {
+            const result = await apiRequest(
+                "/api/interest/apply",
+                { method: "POST" }
+            );
+
+            showMessage(
+                interestMessage,
+                `Intérêts bruts : ${formatMoney(result.gross_interest)} | ` +
+                `Impôt : ${formatMoney(result.tax)} | ` +
+                `Intérêts nets : ${formatMoney(result.net_interest)}`
+            );
+
+            await loadDashboard();
+
+        } catch (error) {
+            showMessage(
+                interestMessage,
+                error.message,
+                true
+            );
+
+        } finally {
+            button.disabled = false;
+        }
+    }
+);
+
+
+// =====================================================
+// FILTERS AND SEARCH
+// =====================================================
+
+filter.addEventListener("change", renderTransactions);
+
+if (search) {
+    search.addEventListener("input", renderTransactions);
+}
+
+
+// =====================================================
+// QUICK ACTION
+// =====================================================
+
+document.getElementById("focusForm").addEventListener(
+    "click",
+    () => {
+        document.getElementById("description").focus();
+
+        document.getElementById("transactions").scrollIntoView({
+            behavior: "smooth"
+        });
+    }
+);
+
+
+// =====================================================
+// INITIALIZATION
+// =====================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadDashboard();
+});

@@ -1,9 +1,14 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartBank | Dashboard</title>
+    <title>SmartBank Pro | Dashboard</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,177 +16,302 @@
 </head>
 
 <body>
-
 <div class="app">
 
     <aside class="sidebar">
         <div class="brand">
-            <span class="logo">▣</span>
+            <div class="logo">S</div>
             <div>
                 <h2>SmartBank</h2>
-                <small>Smart Banking Partner</small>
+                <small>PRO BANKING</small>
             </div>
         </div>
 
+        <div class="nav-label">MENU PRINCIPAL</div>
+
         <nav>
-            <a class="active" href="#dashboard">⌂ Dashboard</a>
-            <a href="#accounts">▣ Accounts</a>
-            <a href="#transactions">⇄ Transactions</a>
-            <a href="#analytics">▥ Analytics</a>
+            <a class="active" href="#dashboard"><span>▦</span> Dashboard</a>
+            <a href="#accounts"><span>▣</span> Mes comptes</a>
+            <a href="#transactions"><span>⇄</span> Transactions</a>
+            <a href="#transfer"><span>↗</span> Transfert</a>
+            <a href="#interest"><span>◈</span> Intérêts & Impôts</a>
+            <a href="#analytics"><span>▥</span> Analytics</a>
         </nav>
 
-        <div class="secure">
-            <span>✓</span>
-            <h4>Secure & Reliable</h4>
-            <p>Banking for a better tomorrow</p>
+        <div class="sidebar-bottom">
+            <div class="secure">
+                <span>✓</span>
+                <div>
+                    <strong>Environnement sécurisé</strong>
+                    <small>Simulation éducative</small>
+                </div>
+            </div>
+            <small class="demo">SmartBank Pro · 2026</small>
         </div>
-
-        <small class="demo">Educational demo · Not a real bank</small>
     </aside>
-
 
     <main id="dashboard">
 
         <header class="topbar">
-            <input id="search" type="search"
-                   placeholder="Search transactions...">
+            <div>
+                <small class="eyebrow">ESPACE BANCAIRE</small>
+                <h2>Dashboard</h2>
+            </div>
 
-            <div class="user">
-                <span class="avatar">U</span>
-                <strong>Welcome, User</strong>
+            <div class="topbar-right">
+                <div class="status"><span></span> Système actif</div>
+                <div class="user">
+                    <span class="avatar">U</span>
+                    <div>
+                        <strong>Utilisateur</strong>
+                        <small>Compte personnel</small>
+                    </div>
+                </div>
             </div>
         </header>
 
-
         <section class="welcome">
             <div>
-                <small>YOUR FINANCES, ONE PLACE</small>
-                <h1>Welcome back!</h1>
-                <p>Manage your finances with SmartBank.</p>
+                <small>SMART FINANCE MANAGEMENT</small>
+                <h1>Bienvenue sur SmartBank Pro</h1>
+                <p>Gérez votre argent intelligemment et suivez vos finances.</p>
             </div>
-            <span class="welcome-icon">▣</span>
+            <div class="welcome-art">S</div>
         </section>
 
-
-        <section class="accounts" id="accounts">
-
-            <article class="balance-card blue">
-                <span>▣</span>
+        <section class="section-block" id="accounts">
+            <div class="section-heading">
                 <div>
-                    <p>Compte courant</p>
-                    <h2 id="currentBalance">0 DT</h2>
-                    <small>Available balance</small>
+                    <small class="eyebrow">VOTRE SITUATION</small>
+                    <h2>Vue d'ensemble</h2>
                 </div>
-            </article>
+                <span class="live-label">● Données en direct</span>
+            </div>
 
-            <article class="balance-card teal">
-                <span>♧</span>
-                <div>
-                    <p>Compte épargne</p>
-                    <h2 id="savingsBalance">0 DT</h2>
-                    <small>Available balance</small>
-                </div>
-            </article>
+            <div class="accounts">
 
-            <article class="balance-card purple">
-                <span>↗</span>
-                <div>
-                    <p>Total Balance</p>
-                    <h2 id="totalBalance">0 DT</h2>
-                    <small>All accounts</small>
-                </div>
-            </article>
+                <article class="balance-card blue">
+                    <div class="card-top">
+                        <span>COMPTE COURANT</span>
+                        <span class="card-icon">▣</span>
+                    </div>
+                    <p>Solde disponible</p>
+                    <h2 id="currentBalance">0.000 DT</h2>
+                    <small>Compte principal</small>
+                </article>
 
+                <article class="balance-card teal">
+                    <div class="card-top">
+                        <span>COMPTE ÉPARGNE</span>
+                        <span class="card-icon">◈</span>
+                    </div>
+                    <p>Épargne disponible</p>
+                    <h2 id="savingsBalance">0.000 DT</h2>
+                    <small>Compte rémunéré</small>
+                </article>
+
+                <article class="balance-card purple">
+                    <div class="card-top">
+                        <span>PATRIMOINE TOTAL</span>
+                        <span class="card-icon">↗</span>
+                    </div>
+                    <p>Solde global</p>
+                    <h2 id="totalBalance">0.000 DT</h2>
+                    <small>Tous vos comptes</small>
+                </article>
+
+            </div>
         </section>
 
+        <section class="content-grid" id="analytics">
 
-        <section class="content-grid">
-
-            <article class="panel" id="analytics">
-                <h2>Balance Overview</h2>
+            <article class="panel chart-panel">
+                <div class="panel-heading">
+                    <div>
+                        <small class="eyebrow">ANALYSE FINANCIÈRE</small>
+                        <h2>Répartition des soldes</h2>
+                    </div>
+                    <span class="mini-tag">DT</span>
+                </div>
                 <div class="chart-container">
                     <canvas id="balanceChart"></canvas>
                 </div>
             </article>
 
-            <article class="panel">
-                <h2>Quick Actions</h2>
+            <article class="panel actions-panel">
+                <div class="panel-heading">
+                    <div>
+                        <small class="eyebrow">GESTION RAPIDE</small>
+                        <h2>Actions rapides</h2>
+                    </div>
+                </div>
 
                 <div class="actions">
-                    <button id="focusForm">＋ Add Transaction</button>
-                    <a href="#accounts">▣ View Accounts</a>
-                    <a href="#transactions">⇄ History</a>
-                    <a href="#analytics">▥ Analytics</a>
+                    <button type="button" id="focusForm">＋ Nouvelle transaction</button>
+                    <a href="#transfer">↗ Effectuer un transfert</a>
+                    <a href="#interest">◈ Calculer les intérêts</a>
+                    <a href="#transactions">⇄ Voir l'historique</a>
                 </div>
             </article>
 
         </section>
 
-
-        <section class="panel transactions" id="transactions">
-
-            <h2>Transaction Management</h2>
+        <section class="panel transaction-panel" id="transactions">
+            <div class="panel-heading">
+                <div>
+                    <small class="eyebrow">OPÉRATIONS BANCAIRES</small>
+                    <h2>Nouvelle transaction</h2>
+                </div>
+            </div>
 
             <form id="transactionForm">
-
                 <div class="form-grid">
 
-                    <div>
-                        <label>Description</label>
-                        <input id="description"
-                               type="text"
-                               placeholder="Ex: Shopping"
-                               maxlength="100"
-                               required>
+                    <div class="field">
+                        <label for="description">Description</label>
+                        <input id="description" type="text"
+                               placeholder="Ex: Salaire, Shopping..."
+                               maxlength="100" required>
                     </div>
 
-                    <div>
-                        <label>Account</label>
+                    <div class="field">
+                        <label for="account">Compte</label>
                         <select id="account">
                             <option value="current">Compte courant</option>
                             <option value="savings">Compte épargne</option>
                         </select>
                     </div>
 
-                    <div>
-                        <label>Transaction type</label>
+                    <div class="field">
+                        <label for="type">Type d'opération</label>
                         <select id="type">
                             <option value="deposit">Dépôt</option>
                             <option value="withdrawal">Retrait</option>
                         </select>
                     </div>
 
-                    <div>
-                        <label>Amount (DT)</label>
-                        <input id="amount"
-                               type="number"
-                               min="0.001"
-                               step="0.001"
-                               placeholder="100"
-                               required>
+                    <div class="field">
+                        <label for="amount">Montant (DT)</label>
+                        <input id="amount" type="number"
+                               min="0.001" step="0.001"
+                               placeholder="100.000" required>
                     </div>
 
                 </div>
 
                 <button class="submit-button" type="submit">
-                    ＋ Add Transaction
+                    Confirmer la transaction →
                 </button>
 
-                <p id="message"></p>
-
+                <p id="message" class="message"></p>
             </form>
+        </section>
 
-
-            <div class="history-heading">
-                <h3>Recent Transactions</h3>
-
-                <select id="filter">
-                    <option value="all">All transactions</option>
-                    <option value="deposit">Deposits</option>
-                    <option value="withdrawal">Withdrawals</option>
-                </select>
+        <section class="panel transfer-panel" id="transfer">
+            <div class="panel-heading">
+                <div>
+                    <small class="eyebrow">MOUVEMENT DE FONDS</small>
+                    <h2>Transfert entre comptes</h2>
+                </div>
+                <span class="mini-tag">TRANSFERT</span>
             </div>
 
+            <form id="transferForm">
+                <div class="form-grid">
+
+                    <div class="field">
+                        <label for="fromAccount">Compte source</label>
+                        <select id="fromAccount">
+                            <option value="current">Compte courant</option>
+                            <option value="savings">Compte épargne</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="toAccount">Compte destinataire</label>
+                        <select id="toAccount">
+                            <option value="savings">Compte épargne</option>
+                            <option value="current">Compte courant</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="transferAmount">Montant (DT)</label>
+                        <input id="transferAmount" type="number"
+                               min="0.001" step="0.001"
+                               placeholder="250.000" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="transferDescription">Description</label>
+                        <input id="transferDescription" type="text"
+                               maxlength="100"
+                               placeholder="Transfert personnel">
+                    </div>
+
+                </div>
+
+                <button class="submit-button transfer-button" type="submit">
+                    Effectuer le transfert →
+                </button>
+
+                <p id="transferMessage" class="message"></p>
+            </form>
+        </section>
+
+        <section class="panel interest-panel" id="interest">
+            <div class="panel-heading">
+                <div>
+                    <small class="eyebrow">RENDEMENT DE L'ÉPARGNE</small>
+                    <h2>Intérêts & Fiscalité</h2>
+                </div>
+                <span class="mini-tag">TRIMESTRIEL</span>
+            </div>
+
+            <div class="interest-info">
+                <div>
+                    <small>Taux annuel indicatif</small>
+                    <strong>2.5%</strong>
+                </div>
+                <div>
+                    <small>Impôt sur intérêts</small>
+                    <strong>20%</strong>
+                </div>
+                <div>
+                    <small>Fréquence</small>
+                    <strong>3 mois</strong>
+                </div>
+            </div>
+
+            <p class="info-note">
+                Modèle pédagogique avec taux fictifs configurables.
+                Le calcul ne représente pas un tarif bancaire officiel.
+            </p>
+
+            <button type="button" class="submit-button"
+                    id="applyInterest">
+                ◈ Calculer les intérêts du trimestre
+            </button>
+
+            <p id="interestMessage" class="message"></p>
+        </section>
+
+        <section class="panel history-panel">
+            <div class="panel-heading">
+                <div>
+                    <small class="eyebrow">SUIVI DES OPÉRATIONS</small>
+                    <h2>Historique des transactions</h2>
+                </div>
+
+                <select id="filter" class="filter-select">
+                    <option value="all">Toutes les opérations</option>
+                    <option value="deposit">Dépôts</option>
+                    <option value="withdrawal">Retraits</option>
+                    <option value="transfer">Transferts</option>
+                    <option value="interest">Intérêts</option>
+                    <option value="tax">Impôts</option>
+                </select>
+            </div>
 
             <div class="table-scroll">
                 <table>
@@ -189,30 +319,25 @@
                         <tr>
                             <th>Description</th>
                             <th>Date</th>
-                            <th>Account</th>
+                            <th>Compte</th>
                             <th>Type</th>
-                            <th>Amount</th>
+                            <th>Montant</th>
                         </tr>
                     </thead>
-
                     <tbody id="transactionList">
                         <tr>
-                            <td colspan="5">Loading...</td>
+                            <td colspan="5">Chargement...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-
         </section>
 
-
         <footer>
-            SmartBank Classic · Educational Finance Project
+            SmartBank Pro © 2026 · Projet éducatif de simulation bancaire
         </footer>
 
     </main>
-
 </div>
-
 </body>
 </html>
