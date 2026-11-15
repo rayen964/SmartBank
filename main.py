@@ -1,6 +1,21 @@
-
 from __future__ import annotations
 
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from calendar import monthrange
+from typing import Optional
+import sqlite3
+import math
+import os
+import secrets
+
+from fastapi import FastAPI, HTTPException, Request, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import Response
+from pydantic import BaseModel, Field, field_validator
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -2234,3 +2249,51 @@ def api_information():
             "health": "/api/health",
         },
     }
+# ============================================================
+# TEMPORARY SECURE DATABASE BACKUP
+# ============================================================
+
+@app.get("/admin/backup")
+def download_database_backup(
+    x_backup_token: Optional[str] = Header(default=None),
+):
+    expected_token = os.getenv("SMARTBANK_BACKUP_TOKEN")
+
+    if not expected_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Backup token is not configured.",
+        )
+
+    if (
+        not x_backup_token
+        or not secrets.compare_digest(
+            x_backup_token,
+            expected_token,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied.",
+        )
+
+    backup_db = sqlite3.connect(":memory:")
+
+    try:
+        with connect_db() as source:
+            source.backup(backup_db)
+
+        backup_data = backup_db.serialize()
+
+    finally:
+        backup_db.close()
+
+    return Response(
+        content=backup_data,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="smartbank_render_backup.db"'
+            )
+        },
+    )
